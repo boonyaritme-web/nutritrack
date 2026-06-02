@@ -27,6 +27,7 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, PostbackEvent, FollowEvent
 )
+from fastapi.middleware.cors import CORSMiddleware
 
 # ---------- config ----------
 line_bot_api = LineBotApi(os.environ["LINE_CHANNEL_ACCESS_TOKEN"])
@@ -39,6 +40,14 @@ GEMINI_MODEL = "gemini-2.5-flash"   # free tier ใช้ได้; สลับ
 CLAUDE_MODEL = "claude-haiku-4-5"   # ถูกสุดสำหรับงานนี้; หรือ claude-sonnet-4-6 ถ้าต้องการคุณภาพสูงขึ้น
 
 app = FastAPI(title="NutriTrack LINE Coach")
+
+# เปิด CORS ให้หน้า LIFF (คนละโดเมน) ส่งข้อมูลเข้า backend ได้
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],          # โปรดักชันจริงควรระบุโดเมน GitHub Pages ของคุณ
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ==========================================================
 # 1) DATABASE  (เหมือน data model ใน spec — ย่อสำหรับ skeleton)
