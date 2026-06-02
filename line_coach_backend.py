@@ -257,6 +257,7 @@ async def webhook(request: Request):
 
     for ev in events:
         uid = ev.source.user_id
+        print("WEBHOOK uid:", uid, "|", type(ev).__name__)   # ดู userId ฝั่งบอท
         reply = None
 
         if isinstance(ev, FollowEvent):
@@ -283,14 +284,19 @@ async def webhook(request: Request):
 @app.post("/api/body-log")
 async def api_body_log(req: Request):
     d = await req.json()                       # {user_id, weight, body_fat, visceral_fat, ...}
+    uid = d["user_id"]
+    print("BODY-LOG uid:", uid)                # ดู userId ฝั่งฟอร์ม LIFF (เทียบกับฝั่งบอท)
     with db() as c:
+        # สร้าง user row ถ้ายังไม่มี (เผื่อกรอกฟอร์มก่อนเคยทักบอท)
+        c.execute("INSERT OR IGNORE INTO users(user_id,sex,age,height_cm) VALUES(?,?,?,?)",
+                  (uid, "M", 30, 170))
         c.execute("""INSERT INTO body_logs(user_id,logged_at,weight,body_fat,visceral_fat,muscle_mass)
                      VALUES(?,?,?,?,?,?)""",
-                  (d["user_id"], datetime.now().isoformat(), d["weight"],
+                  (uid, datetime.now().isoformat(), d["weight"],
                    d.get("body_fat"), d.get("visceral_fat"), d.get("muscle_mass")))
         c.execute("""UPDATE users SET activity=?, goal=? WHERE user_id=?""",
-                  (ACT.get(d.get("activity_level"),1.375), d.get("goal","fat_loss"), d["user_id"]))
-    ctx, t = build_context(d["user_id"])
+                  (ACT.get(d.get("activity_level"),1.375), d.get("goal","fat_loss"), uid))
+    ctx, t = build_context(uid)
     return {"ok": True, "targets": t}
 
 """
