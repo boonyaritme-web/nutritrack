@@ -310,6 +310,73 @@ async def api_body_log(req: Request):
     ctx, t = build_context(uid)
     return {"ok": True, "targets": t}
 
+# ดึงข้อมูลล่าสุดของผู้ใช้ — ให้หน้า LIFF โหลดมาแสดงตอนเปิด (dashboard ไม่ว่าง)
+@app.get("/api/latest")
+async def api_latest(user_id: str):
+    with db() as c:
+        prof = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
+        body = c.execute("SELECT * FROM body_logs WHERE user_id=? ORDER BY logged_at DESC LIMIT 1",
+                         (user_id,)).fetchone()
+    if not body:
+        return {"has_data": False}
+    targets = None
+    if prof:
+        targets = compute_targets(
+            dict(sex=prof["sex"], age=prof["age"], height_cm=prof["height_cm"],
+                 activity=prof["activity"], goal=prof["goal"]),
+            dict(weight=body["weight"], body_fat=body["body_fat"] or 0))
+    return {
+        "has_data": True,
+        "weight": body["weight"], "body_fat": body["body_fat"],
+        "visceral_fat": body["visceral_fat"], "muscle_mass": body["muscle_mass"],
+        "activity": prof["activity"] if prof else 1.375,
+        "goal": prof["goal"] if prof else "fat_loss",
+        "targets": targets,
+    }
+
+# สรุปประจำวัน — ให้ปุ่มในหน้า LIFF เรียกใช้ได้ (เหมือนปุ่มในแชต LINE)
+@app.post("/api/summary")
+async def api_summary(req: Request):
+    d = await req.json()
+    return {"text": handle_daily_summary(d["user_id"])}
+
+# คุยกับโค้ช — ให้หน้า LIFF เรียกใช้ได้ (ใช้ Gemini ผ่าน backend)
+@app.post("/api/coach")
+async def api_coach(req: Request):
+    d = await req.json()
+    uid = d["user_id"]
+    question = (d.get("message") or "").strip()
+    if not question:
+        return {"text": "ส่งคำถามมาได้เลยครับ"}
+    ctx, _ = build_context(uid)
+    prompt = f"{ctx}\n\nคำถาม: {question}" if ctx else question
+    return {"text": ask_llm(COACH_SYSTEM, prompt)}
+
+@app.get("/api/latest")
+async def api_latest(user_id: str):
+    """หน้าเว็บเรียกตอนเปิด เพื่อดึงข้อมูลล่าสุด + เป้าหมาย + ยอดกินวันนี้ มาแสดงบน dashboard"""
+    with db() as c:
+        prof = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
+        body = c.execute("SELECT * FROM body_logs WHERE user_id=? ORDER BY logged_at DESC LIMIT 1",
+                         (user_id,)).fetchone()
+        today = date.today().isoformat()
+        foods = c.execute("SELECT name,kcal,protein,fat,carb FROM food_logs WHERE user_id=? AND logged_at LIKE ?",
+                          (user_id, f"{today}%")).fetchall()
+    if not body:
+        return {"ok": True, "hasData": False}
+    _, t = build_context(user_id)
+    return {
+        "ok": True, "hasData": True,
+        "body": {"weight": body["weight"], "body_fat": body["body_fat"],
+                 "visceral_fat": body["visceral_fat"], "muscle_mass": body["muscle_mass"]},
+        "profile": {"activity": prof["activity"] if prof else 1.375,
+                    "goal": prof["goal"] if prof else "fat_loss"},
+        "targets": t,
+        "eaten": {"kcal": sum(f["kcal"] for f in foods), "protein": sum(f["protein"] for f in foods),
+                  "fat": sum(f["fat"] for f in foods), "carb": sum(f["carb"] for f in foods)},
+        "foods": [dict(f) for f in foods],
+    }
+
 """
 หมายเหตุการตั้งค่า Rich Menu (ทำครั้งเดียวผ่าน LINE API):
 ปุ่ม 'สรุปประจำวัน' ตั้ง action เป็น postback แบบ:  data = "action=daily_summary"
