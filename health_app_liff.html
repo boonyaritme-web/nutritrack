@@ -199,12 +199,12 @@
     <div class="card">
       <h2>กรอกข้อมูลร่างกาย</h2>
       <div class="row">
-        <div class="field"><label>น้ำหนัก (kg) *</label><input id="i-w" type="number" step="0.1" value="78.6"></div>
-        <div class="field"><label>Body Fat (%)</label><input id="i-bf" type="number" step="0.1" value="22.8"></div>
+        <div class="field"><label>น้ำหนัก (kg) *</label><input id="i-w" type="number" step="0.1" placeholder="เช่น 78.6"></div>
+        <div class="field"><label>Body Fat (%)</label><input id="i-bf" type="number" step="0.1" placeholder="เช่น 22.8"></div>
       </div>
       <div class="row">
-        <div class="field"><label>Visceral Fat</label><input id="i-vf" type="number" step="1" value="11"></div>
-        <div class="field"><label>Muscle Mass (kg)</label><input id="i-mm" type="number" step="0.1" value="57.4"></div>
+        <div class="field"><label>Visceral Fat</label><input id="i-vf" type="number" step="1" placeholder="เช่น 11"></div>
+        <div class="field"><label>Muscle Mass (kg)</label><input id="i-mm" type="number" step="0.1" placeholder="เช่น 57.4"></div>
       </div>
       <div class="hint">* น้ำหนักจำเป็น — ถ้าไม่กรอก Body Fat ระบบจะใช้ค่าล่าสุดมาประมาณ (quick-entry)</div>
     </div>
@@ -282,8 +282,8 @@
 // ========================================================
 //  ตั้งค่า LIFF — แก้แค่ 2 ค่านี้ (ที่เหลือไม่ต้องแตะ)
 // ========================================================
-const LIFF_ID     = "2010263042-kmcw2CsX";        // <<< แก้ตรงนี้  เช่น  2010259757-AbcdEfgh
-const BACKEND_URL = "https://nutritrack-1zyu.onrender.com" ;    // <<< แก้ตรงนี้  เช่น  https://nutritrack-1zyu.onrender.com
+const LIFF_ID     = "2010263042-kmcw2CsX";
+const BACKEND_URL = "https://nutritrack-1zyu.onrender.com";
 // ========================================================
 let LINE_USER_ID = null;
 
@@ -310,7 +310,7 @@ async function saveToBackend(){
 // ---------- state ----------
 const state = {
   profile:{sex:'M',age:30,height:180,act:1.375,goal:'fat_loss'},
-  body:{weight:78.6,bf:22.8,vf:11,mm:57.4},
+  body:{weight:null,bf:0,vf:0,mm:0},
   target:null,
   foods:[]
 };
@@ -363,14 +363,16 @@ const r1 = n => Math.round(n*10)/10;
 
 // ---------- actions ----------
 function calc(){
-  state.body.weight = +document.getElementById('i-w').value || state.body.weight;
-  const bf = +document.getElementById('i-bf').value;
+  const w = parseFloat(document.getElementById('i-w').value);
+  if(!w || w<=0){ alert('กรุณากรอกน้ำหนักก่อนครับ'); return; }
+  state.body.weight = w;
+  const bf = parseFloat(document.getElementById('i-bf').value);
   state.body.bf = isNaN(bf)?0:bf;
-  state.body.vf = +document.getElementById('i-vf').value||0;
-  state.body.mm = +document.getElementById('i-mm').value||0;
+  state.body.vf = parseInt(document.getElementById('i-vf').value)||0;
+  state.body.mm = parseFloat(document.getElementById('i-mm').value)||0;
   state.profile.sex = document.getElementById('i-sex').value;
-  state.profile.age = +document.getElementById('i-age').value||30;
-  state.profile.height = +document.getElementById('i-h').value||180;
+  state.profile.age = parseInt(document.getElementById('i-age').value)||30;
+  state.profile.height = parseFloat(document.getElementById('i-h').value)||180;
   state.target = computeTargets(state.profile,state.body);
   render();
   saveToBackend();
@@ -567,7 +569,7 @@ bindChips('act','act'); bindChips('goal','goal');
 
 // init
 document.getElementById('today').textContent = new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
-calc();
+render();   // แสดงหน้าเปล่า รอผู้ใช้กรอกข้อมูลที่แท็บ "ร่างกาย"
 addMsg('c','สวัสดีครับ ผมโค้ชนิว 🥗 ในแอปจริง คุยกับผมและขอสรุปประจำวันได้ที่ "แชต LINE" เลยนะ (กดปุ่มเมนูด้านล่างในแชต) ส่วนหน้านี้ไว้กรอกข้อมูลร่างกายและดูเป้าหมาย');
 
 // ---------- เริ่มต้น LIFF (ทำงานเมื่อเปิดในแอป LINE) ----------
