@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NutriTrack</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a1410; --bg2:#0f1d18; --card:#13241e; --card2:#18302705;
+    --line:#1e3830; --txt:#e9f3ee; --dim:#8aa79b; --faint:#5d7972;
+    --green:#34d27b; --green-d:#1f9d5a; --amber:#f5a623; --red:#ef5a5a;
+    --blue:#4ba8e0; --r:18px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    font-family:'IBM Plex Sans Thai',sans-serif;background:#05080a;color:var(--txt);
+    display:flex;justify-content:center;min-height:100vh;
+  }
+  .phone{
+    width:100%;max-width:430px;background:
+      radial-gradient(120% 60% at 50% 0%, #102a20 0%, var(--bg) 45%, var(--bg) 100%);
+    min-height:100vh;position:relative;padding-bottom:88px;overflow-x:hidden;
+  }
+  .num{font-family:'Kanit',sans-serif;font-weight:300}
+  .topbar{
+    padding:22px 22px 8px;display:flex;align-items:center;justify-content:space-between;
+  }
+  .topbar h1{font-family:'Kanit';font-weight:600;font-size:21px;letter-spacing:.3px}
+  .topbar h1 span{color:var(--green)}
+  .topbar .date{font-size:12px;color:var(--faint)}
+
+  .screen{display:none;padding:6px 18px 20px;animation:fade .35s ease}
+  .screen.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .card{
+    background:linear-gradient(160deg,var(--card) 0%,#101e19 100%);
+    border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-bottom:14px;
+  }
+  .card h2{font-family:'Kanit';font-weight:500;font-size:15px;color:var(--dim);
+    text-transform:uppercase;letter-spacing:1.2px;margin-bottom:14px}
+
+  label{display:block;font-size:13px;color:var(--dim);margin:0 0 6px 2px}
+  .field{margin-bottom:14px}
+  input,select{
+    width:100%;background:#0c1814;border:1px solid var(--line);color:var(--txt);
+    border-radius:12px;padding:13px 14px;font-size:16px;font-family:'IBM Plex Sans Thai';
+    outline:none;transition:.2s;
+  }
+  input:focus,select:focus{border-color:var(--green);background:#0e1d17}
+  .row{display:flex;gap:12px}
+  .row .field{flex:1}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{
+    flex:1;min-width:calc(50% - 4px);text-align:center;padding:11px 8px;border-radius:12px;
+    border:1px solid var(--line);background:#0c1814;font-size:13.5px;cursor:pointer;transition:.18s;
+  }
+  .chip.on{background:rgba(52,210,123,.14);border-color:var(--green);color:var(--green);font-weight:600}
+
+  .btn{
+    width:100%;padding:15px;border:none;border-radius:14px;font-size:16px;font-weight:600;
+    font-family:'IBM Plex Sans Thai';background:var(--green);color:#04150c;cursor:pointer;
+    transition:.18s;letter-spacing:.3px;
+  }
+  .btn:active{transform:scale(.98)}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--dim)}
+
+  /* dashboard */
+  .hero{text-align:center;padding:6px 0 14px}
+  .hero .big{font-family:'Kanit';font-weight:300;font-size:62px;line-height:1}
+  .hero .big small{font-size:24px;color:var(--dim);font-weight:300}
+  .hero .sub{color:var(--dim);font-size:13px;margin-top:6px}
+
+  .ring-wrap{display:flex;justify-content:center;margin:4px 0 18px}
+  .macro-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:4px}
+  .mcard{background:#0c1814;border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center}
+  .mcard .lab{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.6px}
+  .mcard .val{font-family:'Kanit';font-weight:400;font-size:22px;margin:3px 0 8px}
+  .mcard .val small{font-size:12px;color:var(--dim)}
+  .bar{height:6px;background:#0a1310;border-radius:6px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:6px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+
+  .stat-row{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .stat-row:last-child{border:none}
+  .stat-row .k{color:var(--dim)}
+  .stat-row .v{font-family:'Kanit';font-weight:400}
+  .pill{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;margin-left:6px}
+  .pill.ok{background:rgba(52,210,123,.16);color:var(--green)}
+  .pill.warn{background:rgba(245,166,35,.16);color:var(--amber)}
+  .pill.bad{background:rgba(239,90,90,.16);color:var(--red)}
+
+  .warn-box{background:rgba(239,90,90,.1);border:1px solid rgba(239,90,90,.4);
+    border-radius:12px;padding:12px 14px;font-size:13px;color:#ffb3b3;margin-bottom:14px;display:flex;gap:10px}
+  .warn-box.amber{background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.4);color:#ffd78a}
+
+  /* food log */
+  .foodbar{display:flex;gap:8px;margin-bottom:14px}
+  .foodbar input{flex:1}
+  .foodbar button{padding:0 18px;border:none;border-radius:12px;background:var(--green);color:#04150c;font-weight:700;font-size:20px;cursor:pointer}
+  .suggest{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+  .suggest span{font-size:12.5px;padding:7px 12px;border-radius:20px;background:#0c1814;border:1px solid var(--line);color:var(--dim);cursor:pointer}
+  .suggest span:active{background:rgba(52,210,123,.12)}
+  .flog{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+  .flog .fn{font-size:14.5px}
+  .flog .fm{font-size:11.5px;color:var(--faint);margin-top:2px}
+  .flog .fk{font-family:'Kanit';font-weight:400;font-size:16px;text-align:right}
+  .flog .x{color:var(--faint);font-size:18px;padding-left:12px;cursor:pointer}
+  .empty{text-align:center;color:var(--faint);padding:30px 0;font-size:13.5px}
+
+  /* nav */
+  .nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;
+    background:rgba(8,16,13,.92);backdrop-filter:blur(14px);border-top:1px solid var(--line);
+    display:flex;padding:10px 0 14px}
+  .nav button{flex:1;background:none;border:none;color:var(--faint);font-size:11px;
+    font-family:'IBM Plex Sans Thai';cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
+  .nav button.on{color:var(--green)}
+  .nav .ic{font-size:20px}
+  .hint{font-size:11.5px;color:var(--faint);margin-top:8px;line-height:1.5}
+
+  /* coach */
+  .coach-head{display:flex;align-items:center;gap:12px;padding:4px 4px 14px}
+  .coach-av{width:46px;height:46px;border-radius:14px;background:linear-gradient(150deg,var(--green),var(--green-d));
+    display:flex;align-items:center;justify-content:center;font-size:24px}
+  .coach-name{font-family:'Kanit';font-weight:500;font-size:17px}
+  .coach-role{font-size:12px;color:var(--faint)}
+  .chatbox{min-height:46vh;max-height:54vh;overflow-y:auto;padding:6px 2px;display:flex;flex-direction:column;gap:12px;margin-bottom:12px}
+  .msg{max-width:84%;padding:12px 14px;border-radius:16px;font-size:14.5px;line-height:1.5;white-space:pre-wrap}
+  .msg.u{align-self:flex-end;background:var(--green);color:#04150c;border-bottom-right-radius:5px}
+  .msg.c{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:5px}
+  .msg.typing{color:var(--faint);font-style:italic}
+  .foodbar button{font-size:16px}
+  .sumcard{background:linear-gradient(160deg,#143026,#0f211a);border:1px solid var(--green-d);
+    border-radius:var(--r);padding:16px 18px;margin-top:14px;font-size:14px;line-height:1.6;white-space:pre-wrap;animation:fade .35s}
+  .sumcard .sh{display:flex;align-items:center;gap:8px;font-family:'Kanit';font-weight:500;color:var(--green);margin-bottom:10px;font-size:14px}
+  #sum-btn{margin-bottom:0}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="topbar">
+    <h1>Nutri<span>Track</span></h1>
+    <div class="date" id="today"></div>
+  </div>
+
+  <!-- ============ DASHBOARD ============ -->
+  <div class="screen active" id="s-dash">
+    <div class="card">
+      <div class="hero">
+        <div class="big num" id="d-remain">—<small> kcal เหลือ</small></div>
+        <div class="sub" id="d-eaten">กินไปแล้ว 0 / 0 kcal</div>
+      </div>
+      <div class="macro-grid">
+        <div class="mcard">
+          <div class="lab">โปรตีน</div>
+          <div class="val num"><span id="m-p">0</span><small>/<span id="t-p">0</span>g</small></div>
+          <div class="bar"><i id="b-p" style="width:0;background:var(--green)"></i></div>
+        </div>
+        <div class="mcard">
+          <div class="lab">ไขมัน</div>
+          <div class="val num"><span id="m-f">0</span><small>/<span id="t-f">0</span>g</small></div>
+          <div class="bar"><i id="b-f" style="width:0;background:var(--amber)"></i></div>
+        </div>
+        <div class="mcard">
+          <div class="lab">คาร์บ</div>
+          <div class="val num"><span id="m-c">0</span><small>/<span id="t-c">0</span>g</small></div>
+          <div class="bar"><i id="b-c" style="width:0;background:var(--blue)"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="alerts"></div>
+
+    <button class="btn" onclick="dailySummary()" id="sum-btn">📋 ขอสรุปประจำวันจากโค้ช</button>
+    <div id="sum-result"></div>
+
+    <div class="card">
+      <h2>เป้าหมายวันนี้</h2>
+      <div class="stat-row"><span class="k">BMR (Katch-McArdle)</span><span class="v num" id="d-bmr">—</span></div>
+      <div class="stat-row"><span class="k">TDEE (เผาผลาญรวม)</span><span class="v num" id="d-tdee">—</span></div>
+      <div class="stat-row"><span class="k">เป้าหมายแคลอรี่</span><span class="v num" id="d-target">—</span></div>
+      <div class="stat-row"><span class="k">โปรตีนเป้าหมาย</span><span class="v num" id="d-protein">—</span></div>
+    </div>
+
+    <div class="card">
+      <h2>องค์ประกอบร่างกายล่าสุด</h2>
+      <div class="stat-row"><span class="k">น้ำหนัก</span><span class="v num" id="d-w">—</span></div>
+      <div class="stat-row"><span class="k">Body Fat</span><span class="v num" id="d-bf">—</span></div>
+      <div class="stat-row"><span class="k">Lean Body Mass</span><span class="v num" id="d-lbm">—</span></div>
+      <div class="stat-row"><span class="k">Visceral Fat</span><span class="v num" id="d-vf">—</span></div>
+    </div>
+  </div>
+
+  <!-- ============ BODY LOG ============ -->
+  <div class="screen" id="s-body">
+    <div class="card">
+      <h2>กรอกข้อมูลร่างกาย</h2>
+      <div class="row">
+        <div class="field"><label>น้ำหนัก (kg) *</label><input id="i-w" type="number" step="0.1" value="78.6"></div>
+        <div class="field"><label>Body Fat (%)</label><input id="i-bf" type="number" step="0.1" value="22.8"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Visceral Fat</label><input id="i-vf" type="number" step="1" value="11"></div>
+        <div class="field"><label>Muscle Mass (kg)</label><input id="i-mm" type="number" step="0.1" value="57.4"></div>
+      </div>
+      <div class="hint">* น้ำหนักจำเป็น — ถ้าไม่กรอก Body Fat ระบบจะใช้ค่าล่าสุดมาประมาณ (quick-entry)</div>
+    </div>
+
+    <div class="card">
+      <h2>ข้อมูลโปรไฟล์</h2>
+      <div class="row">
+        <div class="field"><label>เพศ</label>
+          <select id="i-sex"><option value="M">ชาย</option><option value="F">หญิง</option></select></div>
+        <div class="field"><label>อายุ</label><input id="i-age" type="number" value="30"></div>
+        <div class="field"><label>สูง (cm)</label><input id="i-h" type="number" value="180"></div>
+      </div>
+      <div class="field"><label>ระดับกิจกรรม</label>
+        <div class="chips" id="act">
+          <div class="chip" data-v="1.2">นั่งโต๊ะ</div>
+          <div class="chip on" data-v="1.375">เบา</div>
+          <div class="chip" data-v="1.55">ปานกลาง</div>
+          <div class="chip" data-v="1.725">หนัก</div>
+        </div>
+      </div>
+      <div class="field"><label>เป้าหมาย</label>
+        <div class="chips" id="goal">
+          <div class="chip on" data-v="fat_loss">ลดไขมัน</div>
+          <div class="chip" data-v="muscle_gain">เพิ่มกล้าม</div>
+          <div class="chip" data-v="recomp">Recomp</div>
+          <div class="chip" data-v="maintain">คงน้ำหนัก</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn" onclick="calc()">คำนวณ & บันทึก</button>
+  </div>
+
+  <!-- ============ FOOD ============ -->
+  <div class="screen" id="s-food">
+    <div class="card">
+      <h2>บันทึกอาหาร</h2>
+      <div class="foodbar">
+        <input id="i-food" placeholder="เช่น ข้าวมันไก่ 1 จาน" onkeydown="if(event.key==='Enter')addFood()">
+        <button onclick="addFood()">+</button>
+      </div>
+      <div class="suggest" id="suggest"></div>
+      <div id="foodlist"></div>
+    </div>
+  </div>
+
+  <!-- ============ COACH ============ -->
+  <div class="screen" id="s-coach">
+    <div class="coach-head">
+      <div class="coach-av">🥗</div>
+      <div><div class="coach-name">โค้ชนิว</div><div class="coach-role">นักโภชนาการ & เทรนเนอร์ส่วนตัว</div></div>
+    </div>
+    <div class="chatbox" id="chatbox"></div>
+    <div class="suggest" id="coach-sug">
+      <span onclick="askCoach('สรุปสถานการณ์วันนี้ให้หน่อย')">สรุปวันนี้</span>
+      <span onclick="askCoach('ตอนนี้ควรกินอะไรต่อดี')">กินอะไรต่อดี</span>
+      <span onclick="askCoach('ออกกำลังกายแบบไหนเหมาะกับเป้าหมายผม')">ออกกำลังกาย</span>
+      <span onclick="askCoach('ทำไมน้ำหนักไม่ค่อยลด')">น้ำหนักไม่ลด</span>
+    </div>
+    <div class="foodbar">
+      <input id="i-coach" placeholder="ถามโค้ชได้ทุกเรื่องสุขภาพ..." onkeydown="if(event.key==='Enter')askCoach()">
+      <button onclick="askCoach()">➤</button>
+    </div>
+  </div>
+
+  <!-- nav -->
+  <div class="nav">
+    <button class="on" data-s="s-dash" onclick="nav(this)"><span class="ic">◎</span>วันนี้</button>
+    <button data-s="s-body" onclick="nav(this)"><span class="ic">⚖</span>ร่างกาย</button>
+    <button data-s="s-food" onclick="nav(this)"><span class="ic">🍱</span>อาหาร</button>
+    <button data-s="s-coach" onclick="nav(this)"><span class="ic">💬</span>โค้ช</button>
+  </div>
+</div>
+
+<script>
+// ========================================================
+//  ตั้งค่า LIFF — แก้แค่ 2 ค่านี้ (ที่เหลือไม่ต้องแตะ)
+// ========================================================
+const LIFF_ID     = "ใส่_LIFF_ID_ที่นี่";        // <<< แก้ตรงนี้  เช่น  2010259757-AbcdEfgh
+const BACKEND_URL = "ใส่_BACKEND_URL_ที่นี่";    // <<< แก้ตรงนี้  เช่น  https://nutritrack-1zyu.onrender.com
+// ========================================================
+let LINE_USER_ID = null;
+
+function actLevelName(){
+  const m = {1.2:"sedentary",1.375:"light",1.55:"moderate",1.725:"active"};
+  return m[state.profile.act] || "light";
+}
+// ส่งข้อมูลร่างกายเข้า backend (ทำงานเมื่อเปิดในแอป LINE และตั้งค่าครบ)
+async function saveToBackend(){
+  if(!LINE_USER_ID || !BACKEND_URL || BACKEND_URL.includes("ใส่")) return; // ข้ามตอนทดสอบในเบราว์เซอร์
+  try{
+    await fetch(BACKEND_URL.replace(/\/$/,"") + "/api/body-log", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        user_id: LINE_USER_ID,
+        weight: state.body.weight, body_fat: state.body.bf,
+        visceral_fat: state.body.vf, muscle_mass: state.body.mm,
+        activity_level: actLevelName(), goal: state.profile.goal
+      })
+    });
+  }catch(e){ console.log("save error:", e); }
+}
+
+// ---------- state ----------
+const state = {
+  profile:{sex:'M',age:30,height:180,act:1.375,goal:'fat_loss'},
+  body:{weight:78.6,bf:22.8,vf:11,mm:57.4},
+  target:null,
+  foods:[]
+};
+
+// ---------- mini Thai food DB (macro ต่อ 1 หน่วยมาตรฐาน) ----------
+const FOODDB = {
+  'ข้าวมันไก่':{kcal:596,p:25,f:25,c:68},
+  'ผัดกะเพราหมูไข่ดาว':{kcal:620,p:28,f:32,c:55},
+  'ส้มตำ':{kcal:140,p:5,f:3,c:25},
+  'อกไก่ย่าง 200g':{kcal:330,p:62,f:7,c:0},
+  'ไข่ต้ม 1 ฟอง':{kcal:78,p:6,f:5,c:1},
+  'เวย์โปรตีน 1 สกู๊ป':{kcal:120,p:24,f:2,c:3},
+  'ข้าวสวย 1 ทัพพี':{kcal:120,p:2,f:0,c:27},
+  'สลัดอกไก่':{kcal:280,p:35,f:8,c:18},
+  'ก๋วยเตี๋ยวต้มยำ':{kcal:430,p:20,f:14,c:55},
+  'นมจืด 1 กล่อง':{kcal:130,p:8,f:5,c:12}
+};
+
+// ---------- engine (ตรงตาม spec) ----------
+function computeTargets(p,b){
+  const lbm = b.weight*(1 - b.bf/100);
+  // BMR: Katch-McArdle ถ้ามี bf, ไม่งั้น Mifflin-St Jeor
+  let bmr;
+  if(b.bf>0){ bmr = 370 + 21.6*lbm; }
+  else{ bmr = 10*b.weight + 6.25*p.height - 5*p.age + (p.sex==='M'?5:-161); }
+  const tdee = bmr*p.act;
+
+  let target;
+  if(p.goal==='fat_loss') target = tdee-400;
+  else if(p.goal==='muscle_gain') target = tdee+250;
+  else target = tdee; // recomp / maintain
+
+  // GUARDRAIL: ห้ามต่ำกว่า BMR
+  let floored=false;
+  if(target<bmr){ target=bmr; floored=true; }
+
+  // โปรตีน g/kg ตามเป้า
+  const ppk = p.goal==='muscle_gain'?1.8 : p.goal==='recomp'?2.2 : 2.0;
+  const protein = ppk*b.weight;
+  const fat = (target*0.25)/9;
+  const carb = (target - protein*4 - fat*9)/4;
+
+  return {
+    lbm:r1(lbm), bmr:Math.round(bmr), tdee:Math.round(tdee),
+    target:Math.round(target), protein:Math.round(protein),
+    fat:Math.round(fat), carb:Math.round(carb), floored
+  };
+}
+const r1 = n => Math.round(n*10)/10;
+
+// ---------- actions ----------
+function calc(){
+  state.body.weight = +document.getElementById('i-w').value || state.body.weight;
+  const bf = +document.getElementById('i-bf').value;
+  state.body.bf = isNaN(bf)?0:bf;
+  state.body.vf = +document.getElementById('i-vf').value||0;
+  state.body.mm = +document.getElementById('i-mm').value||0;
+  state.profile.sex = document.getElementById('i-sex').value;
+  state.profile.age = +document.getElementById('i-age').value||30;
+  state.profile.height = +document.getElementById('i-h').value||180;
+  state.target = computeTargets(state.profile,state.body);
+  render();
+  saveToBackend();
+  document.querySelector('.nav button[data-s="s-dash"]').click();
+}
+
+function addFood(){
+  const inp = document.getElementById('i-food');
+  let name = inp.value.trim();
+  if(!name) return;
+  let m = matchFood(name);
+  if(!m){
+    const kcal = prompt('ไม่พบในฐานข้อมูล — กรอกแคลอรี่โดยประมาณ (kcal):');
+    if(kcal===null) return;
+    const p = +prompt('โปรตีน (g)?')||0;
+    m = {kcal:+kcal||0, p, f:0, c:0};
+  }
+  state.foods.push({name, ...m});
+  inp.value='';
+  render();
+}
+function matchFood(name){
+  const key = Object.keys(FOODDB).find(k => name.includes(k)||k.includes(name));
+  return key?{...FOODDB[key]}:null;
+}
+function quickAdd(k){ state.foods.push({name:k,...FOODDB[k]}); render(); }
+function delFood(i){ state.foods.splice(i,1); render(); }
+
+// ---------- render ----------
+function render(){
+  const t = state.target;
+  // suggestions
+  const sg = document.getElementById('suggest');
+  sg.innerHTML = Object.keys(FOODDB).slice(0,6).map(k=>`<span onclick="quickAdd('${k}')">${k}</span>`).join('');
+
+  // food list
+  const fl = document.getElementById('foodlist');
+  if(!state.foods.length){ fl.innerHTML='<div class="empty">ยังไม่มีรายการ — แตะเมนูด้านบนหรือพิมพ์เพิ่ม</div>'; }
+  else{
+    fl.innerHTML = state.foods.map((f,i)=>`<div class="flog">
+      <div><div class="fn">${f.name}</div><div class="fm">P ${f.p} · F ${f.f} · C ${f.c} g</div></div>
+      <div style="display:flex;align-items:center"><div class="fk">${f.kcal}<br><span style="font-size:10px;color:var(--faint)">kcal</span></div>
+      <span class="x" onclick="delFood(${i})">✕</span></div></div>`).join('');
+  }
+
+  if(!t) return;
+  const eaten = state.foods.reduce((a,f)=>({k:a.k+f.kcal,p:a.p+f.p,f:a.f+f.f,c:a.c+f.c}),{k:0,p:0,f:0,c:0});
+
+  document.getElementById('d-remain').innerHTML = Math.max(0,Math.round(t.target-eaten.k))+'<small> kcal เหลือ</small>';
+  document.getElementById('d-eaten').textContent = `กินไปแล้ว ${Math.round(eaten.k)} / ${t.target} kcal`;
+
+  setMacro('p',eaten.p,t.protein); setMacro('f',eaten.f,t.fat); setMacro('c',eaten.c,t.carb);
+
+  document.getElementById('d-bmr').textContent = t.bmr+' kcal';
+  document.getElementById('d-tdee').textContent = t.tdee+' kcal';
+  document.getElementById('d-target').textContent = t.target+' kcal';
+  document.getElementById('d-protein').textContent = t.protein+' g';
+  document.getElementById('d-w').textContent = state.body.weight+' kg';
+  document.getElementById('d-bf').textContent = state.body.bf?state.body.bf+' %':'—';
+  document.getElementById('d-lbm').textContent = t.lbm+' kg';
+
+  const vf = state.body.vf;
+  let vfpill = vf>=10?'<span class="pill bad">very high</span>':vf>=6?'<span class="pill warn">high</span>':'<span class="pill ok">ปกติ</span>';
+  document.getElementById('d-vf').innerHTML = vf+' '+vfpill;
+
+  // alerts / guardrails
+  let a='';
+  if(t.floored) a+=`<div class="warn-box amber">⚠ เป้าหมายถูกล็อกไว้ที่ BMR เพื่อความปลอดภัย — การกินต่ำกว่าค่าเผาผลาญพื้นฐานเสี่ยงต่อสุขภาพและการสูญเสียกล้ามเนื้อ</div>`;
+  if(vf>=10) a+=`<div class="warn-box">❤ Visceral fat อยู่ในระดับสูงมาก (${vf}) — ควรให้ความสำคัญเป็นอันดับต้นและปรึกษาแพทย์เพื่อประเมินสุขภาพ</div>`;
+  const rp = t.protein-eaten.p;
+  if(rp>0 && eaten.k>0) a+=`<div class="warn-box amber">💪 ยังขาดโปรตีน ${Math.round(rp)} g — ลองอกไก่ย่าง / เวย์ 1 สกู๊ป / ไข่ต้ม</div>`;
+  document.getElementById('alerts').innerHTML=a;
+}
+function setMacro(key,v,t){
+  document.getElementById('m-'+key).textContent=Math.round(v);
+  document.getElementById('t-'+key).textContent=t;
+  const pct=Math.min(100,t?v/t*100:0);
+  const bar=document.getElementById('b-'+key);
+  bar.style.width=pct+'%';
+  if(v>t*1.05) bar.style.background='var(--red)';
+}
+
+// ---------- DAILY SUMMARY (ปุ่มสรุปประจำวัน — แบบเดียวกับ Rich Menu บนไลน์) ----------
+async function dailySummary(){
+  const btn = document.getElementById('sum-btn');
+  const out = document.getElementById('sum-result');
+  btn.disabled = true; btn.textContent = 'โค้ชกำลังสรุป...';
+  const prompt = `${buildContext()}\n\nช่วยสรุปผลประจำวันให้ผู้ใช้แบบกระชับ พร้อมคำแนะนำสำหรับช่วงที่เหลือของวัน จัดรูปแบบให้อ่านง่ายบนแชต LINE: เริ่มด้วยภาพรวมสั้นๆ 1 บรรทัด แล้วตามด้วยจุดที่ทำได้ดี 1 ข้อ และสิ่งที่ควรทำต่อ 1-2 ข้อ ใช้อิโมจินำแต่ละบรรทัดเล็กน้อย`;
+  try{
+    const res = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000,
+        system: COACH_SYSTEM, messages:[{role:"user",content:prompt}] })
+    });
+    const data = await res.json();
+    const reply = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
+    out.innerHTML = `<div class="sumcard"><div class="sh">🥗 สรุปจากโค้ชนิว</div>${reply.replace(/</g,'&lt;')}</div>`;
+  }catch(e){
+    out.innerHTML = `<div class="sumcard">เชื่อมต่อโค้ชไม่ได้ตอนนี้ ลองใหม่อีกครั้งนะครับ</div>`;
+  }
+  btn.disabled = false; btn.textContent = '📋 ขอสรุปประจำวันจากโค้ช';
+}
+
+// ---------- COACH (Claude API) ----------
+let chatHistory = [];
+
+function buildContext(){
+  const t = state.target, b = state.body, p = state.profile;
+  const eaten = state.foods.reduce((a,f)=>({k:a.k+f.kcal,p:a.p+f.p,f:a.f+f.f,c:a.c+f.c}),{k:0,p:0,f:0,c:0});
+  const goalTH = {fat_loss:'ลดไขมัน',muscle_gain:'เพิ่มกล้ามเนื้อ',recomp:'recomp (ลดไขมันคงกล้าม)',maintain:'คงน้ำหนัก'}[p.goal];
+  const foodList = state.foods.length? state.foods.map(f=>`${f.name} (${f.kcal}kcal, P${f.p})`).join(', ') : 'ยังไม่ได้กินอะไร';
+  return `ข้อมูลผู้ใช้ ณ ตอนนี้:
+- เพศ ${p.sex==='M'?'ชาย':'หญิง'}, อายุ ${p.age}, สูง ${p.height}cm, น้ำหนัก ${b.weight}kg
+- Body fat ${b.bf}%, Lean body mass ${t.lbm}kg, Visceral fat ${b.vf} (${b.vf>=10?'สูงมาก':'ปกติ'})
+- เป้าหมาย: ${goalTH}, ระดับกิจกรรม factor ${p.act}
+- BMR ${t.bmr} kcal, TDEE ${t.tdee} kcal, เป้าหมายแคลอรี่วันนี้ ${t.target} kcal
+- เป้าหมาย macro: โปรตีน ${t.protein}g / ไขมัน ${t.fat}g / คาร์บ ${t.carb}g
+- วันนี้กินไปแล้ว: ${Math.round(eaten.k)} kcal (โปรตีน ${Math.round(eaten.p)}g, ไขมัน ${Math.round(eaten.f)}g, คาร์บ ${Math.round(eaten.c)}g)
+- คงเหลือ: ${Math.round(t.target-eaten.k)} kcal, ยังขาดโปรตีน ${Math.max(0,Math.round(t.protein-eaten.p))}g
+- รายการอาหารวันนี้: ${foodList}`;
+}
+
+const COACH_SYSTEM = `คุณคือ "โค้ชนิว" นักโภชนาการและเทรนเนอร์ส่วนตัวในแอปสุขภาพ พูดไทยเป็นกันเอง ให้กำลังใจแต่ตรงไปตรงมา
+
+หลักการ:
+- ตอบสั้น กระชับ เหมือนแชต (2-5 ประโยค) เพราะนี่คือแอปบนมือถือ/LINE
+- ใช้ตัวเลขจริงของผู้ใช้ในการแนะนำเสมอ อ้างอิงข้อมูลที่ให้มา
+- แนะนำเป็นขั้นที่ทำได้จริงและเฉพาะเจาะจง (เช่นบอกเมนู/ปริมาณ ไม่ใช่หลักการลอยๆ)
+- เน้นอาหารไทยและบริบทคนไทย
+
+ความปลอดภัย (สำคัญมาก):
+- ห้ามแนะนำให้กินต่ำกว่า BMR หรืออดอาหารแบบสุดโต่ง
+- ถ้า visceral fat สูงมาก ให้ย้ำเบาๆ ว่าควรปรึกษาแพทย์ ไม่วินิจฉัยโรคเอง
+- ไม่ให้คำแนะนำทางการแพทย์เฉพาะโรค ให้แนะนำพบแพทย์/นักกำหนดอาหารแทน
+- ส่งเสริมพฤติกรรมยั่งยืน ไม่กดดันเรื่องน้ำหนักจนเกินไป`;
+
+async function askCoach(preset){
+  const inp = document.getElementById('i-coach');
+  const text = preset || inp.value.trim();
+  if(!text) return;
+  inp.value='';
+  addMsg('u', text);
+  chatHistory.push({role:'user', content:`${buildContext()}\n\nคำถาม: ${text}`});
+
+  const typing = addMsg('c', 'กำลังพิมพ์...', true);
+
+  try{
+    const res = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"claude-sonnet-4-20250514", max_tokens:1000,
+        system: COACH_SYSTEM,
+        messages: chatHistory
+      })
+    });
+    const data = await res.json();
+    const reply = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim()
+                  || 'ขอโทษครับ ตอบไม่ได้ตอนนี้ ลองใหม่อีกครั้งนะ';
+    typing.remove();
+    addMsg('c', reply);
+    chatHistory.push({role:'assistant', content: reply});
+  }catch(e){
+    typing.remove();
+    addMsg('c','เชื่อมต่อโค้ชไม่ได้ตอนนี้ ลองใหม่อีกครั้งนะครับ 🙏');
+  }
+}
+
+function addMsg(who, text, isTyping){
+  const box = document.getElementById('chatbox');
+  const d = document.createElement('div');
+  d.className = 'msg '+who+(isTyping?' typing':'');
+  d.textContent = text;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+  return d;
+}
+
+// ---------- nav & chips ----------
+function nav(btn){
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  btn.classList.add('on');
+  document.getElementById(btn.dataset.s).classList.add('active');
+}
+function bindChips(id,key){
+  document.querySelectorAll('#'+id+' .chip').forEach(c=>c.onclick=()=>{
+    c.parentNode.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));
+    c.classList.add('on');
+    const v=c.dataset.v;
+    if(key==='act') state.profile.act=+v; else state.profile.goal=v;
+  });
+}
+bindChips('act','act'); bindChips('goal','goal');
+
+// init
+document.getElementById('today').textContent = new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+calc();
+addMsg('c','สวัสดีครับ ผมโค้ชนิว 🥗 ในแอปจริง คุยกับผมและขอสรุปประจำวันได้ที่ "แชต LINE" เลยนะ (กดปุ่มเมนูด้านล่างในแชต) ส่วนหน้านี้ไว้กรอกข้อมูลร่างกายและดูเป้าหมาย');
+
+// ---------- เริ่มต้น LIFF (ทำงานเมื่อเปิดในแอป LINE) ----------
+if(window.liff && LIFF_ID && !LIFF_ID.includes("ใส่")){
+  liff.init({ liffId: LIFF_ID })
+    .then(()=> liff.isLoggedIn() ? liff.getProfile() : null)
+    .then(p=>{ if(p) LINE_USER_ID = p.userId; })
+    .catch(e=> console.log("liff init:", e));
+}
+</script>
+</body>
+</html>
