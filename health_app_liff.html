@@ -455,21 +455,20 @@ function setMacro(key,v,t){
   if(v>t*1.05) bar.style.background='var(--red)';
 }
 
-// ---------- DAILY SUMMARY (ปุ่มสรุปประจำวัน — แบบเดียวกับ Rich Menu บนไลน์) ----------
+// ---------- DAILY SUMMARY (เรียก backend ที่ใช้ Gemini จริง) ----------
 async function dailySummary(){
   const btn = document.getElementById('sum-btn');
   const out = document.getElementById('sum-result');
   btn.disabled = true; btn.textContent = 'โค้ชกำลังสรุป...';
-  const prompt = `${buildContext()}\n\nช่วยสรุปผลประจำวันให้ผู้ใช้แบบกระชับ พร้อมคำแนะนำสำหรับช่วงที่เหลือของวัน จัดรูปแบบให้อ่านง่ายบนแชต LINE: เริ่มด้วยภาพรวมสั้นๆ 1 บรรทัด แล้วตามด้วยจุดที่ทำได้ดี 1 ข้อ และสิ่งที่ควรทำต่อ 1-2 ข้อ ใช้อิโมจินำแต่ละบรรทัดเล็กน้อย`;
   try{
-    const res = await fetch("https://api.anthropic.com/v1/messages",{
+    if(!LINE_USER_ID || BACKEND_URL.includes("ใส่")) throw new Error("not in LIFF");
+    const res = await fetch(BACKEND_URL.replace(/\/$/,"") + "/api/summary",{
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000,
-        system: COACH_SYSTEM, messages:[{role:"user",content:prompt}] })
+      body: JSON.stringify({user_id: LINE_USER_ID})
     });
     const data = await res.json();
-    const reply = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
-    out.innerHTML = `<div class="sumcard"><div class="sh">🥗 สรุปจากโค้ชนิว</div>${reply.replace(/</g,'&lt;')}</div>`;
+    const reply = (data.text || 'ขอโทษครับ ตอบไม่ได้ตอนนี้').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    out.innerHTML = `<div class="sumcard"><div class="sh">🥗 สรุปจากโค้ชนิว</div>${reply}</div>`;
   }catch(e){
     out.innerHTML = `<div class="sumcard">เชื่อมต่อโค้ชไม่ได้ตอนนี้ ลองใหม่อีกครั้งนะครับ</div>`;
   }
@@ -515,25 +514,17 @@ async function askCoach(preset){
   if(!text) return;
   inp.value='';
   addMsg('u', text);
-  chatHistory.push({role:'user', content:`${buildContext()}\n\nคำถาม: ${text}`});
-
   const typing = addMsg('c', 'กำลังพิมพ์...', true);
-
   try{
-    const res = await fetch("https://api.anthropic.com/v1/messages",{
+    if(!LINE_USER_ID || BACKEND_URL.includes("ใส่")) throw new Error("not in LIFF");
+    const res = await fetch(BACKEND_URL.replace(/\/$/,"") + "/api/coach",{
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        model:"claude-sonnet-4-20250514", max_tokens:1000,
-        system: COACH_SYSTEM,
-        messages: chatHistory
-      })
+      body: JSON.stringify({user_id: LINE_USER_ID, message: text})
     });
     const data = await res.json();
-    const reply = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim()
-                  || 'ขอโทษครับ ตอบไม่ได้ตอนนี้ ลองใหม่อีกครั้งนะ';
+    const reply = data.text || 'ขอโทษครับ ตอบไม่ได้ตอนนี้ ลองใหม่อีกครั้งนะ';
     typing.remove();
     addMsg('c', reply);
-    chatHistory.push({role:'assistant', content: reply});
   }catch(e){
     typing.remove();
     addMsg('c','เชื่อมต่อโค้ชไม่ได้ตอนนี้ ลองใหม่อีกครั้งนะครับ 🙏');
@@ -567,16 +558,44 @@ function bindChips(id,key){
 }
 bindChips('act','act'); bindChips('goal','goal');
 
+// ดึงข้อมูลล่าสุดจาก backend มาแสดงตอนเปิดหน้า (dashboard ไม่ว่าง)
+async function loadLatest(){
+  if(!LINE_USER_ID || BACKEND_URL.includes("ใส่")) return;
+  try{
+    const res = await fetch(BACKEND_URL.replace(/\/$/,"") + "/api/latest?user_id=" + encodeURIComponent(LINE_USER_ID));
+    const d = await res.json();
+    if(!d.has_data) return;
+    state.body.weight = d.weight;
+    state.body.bf = d.body_fat || 0;
+    state.body.vf = d.visceral_fat || 0;
+    state.body.mm = d.muscle_mass || 0;
+    state.profile.act = d.activity || 1.375;
+    state.profile.goal = d.goal || 'fat_loss';
+    state.target = d.targets;
+    // เติมค่าลงช่อง input ด้วย เพื่อให้แก้/อัปเดตง่าย
+    document.getElementById('i-w').value = d.weight ?? '';
+    if(d.body_fat)     document.getElementById('i-bf').value = d.body_fat;
+    if(d.visceral_fat) document.getElementById('i-vf').value = d.visceral_fat;
+    if(d.muscle_mass)  document.getElementById('i-mm').value = d.muscle_mass;
+    // เลือก chip ให้ตรงกับค่าที่บันทึกไว้
+    document.querySelectorAll('#act .chip').forEach(c=>
+      c.classList.toggle('on', parseFloat(c.dataset.v) === state.profile.act));
+    document.querySelectorAll('#goal .chip').forEach(c=>
+      c.classList.toggle('on', c.dataset.v === state.profile.goal));
+    render();
+  }catch(e){ console.log("load latest error:", e); }
+}
+
 // init
 document.getElementById('today').textContent = new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
-render();   // แสดงหน้าเปล่า รอผู้ใช้กรอกข้อมูลที่แท็บ "ร่างกาย"
-addMsg('c','สวัสดีครับ ผมโค้ชนิว 🥗 ในแอปจริง คุยกับผมและขอสรุปประจำวันได้ที่ "แชต LINE" เลยนะ (กดปุ่มเมนูด้านล่างในแชต) ส่วนหน้านี้ไว้กรอกข้อมูลร่างกายและดูเป้าหมาย');
+render();   // แสดงหน้าเปล่ารอ
+addMsg('c','สวัสดีครับ ผมโค้ชนิว 🥗 ถามผมได้เลยว่าวันนี้ควรกินอะไร ออกกำลังกายยังไง หรือทำไมเป้าหมายยังไม่ขยับ');
 
-// ---------- เริ่มต้น LIFF (ทำงานเมื่อเปิดในแอป LINE) ----------
+// ---------- เริ่มต้น LIFF + โหลดข้อมูลล่าสุด ----------
 if(window.liff && LIFF_ID && !LIFF_ID.includes("ใส่")){
   liff.init({ liffId: LIFF_ID })
     .then(()=> liff.isLoggedIn() ? liff.getProfile() : null)
-    .then(p=>{ if(p) LINE_USER_ID = p.userId; })
+    .then(p=>{ if(p){ LINE_USER_ID = p.userId; loadLatest(); } })
     .catch(e=> console.log("liff init:", e));
 }
 </script>
