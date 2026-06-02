@@ -155,23 +155,37 @@ def build_context(user_id):
 - รายการวันนี้: {food_list}"""
     return ctx, t
 
-def ask_llm(system, user_msg):
-    """เรียก LLM ตาม LLM_PROVIDER — เปลี่ยน provider ที่ตัวแปรเดียวด้านบน
+import time
+
+def ask_llm(system, user_msg, retries=3):
+    """เรียก LLM ตาม LLM_PROVIDER — มี auto-retry เผื่อเซิร์ฟเวอร์แน่นชั่วคราว (503)
     prompt (COACH_SYSTEM) และ context เหมือนกันทั้งสองเจ้า ไม่ต้องแก้ logic"""
-    if LLM_PROVIDER == "gemini":
-        from google import genai
-        from google.genai import types
-        client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-        resp = client.models.generate_content(
-            model=GEMINI_MODEL, contents=user_msg,
-            config=types.GenerateContentConfig(system_instruction=system, max_output_tokens=1000))
-        return (resp.text or "").strip()
-    else:  # anthropic
-        from anthropic import Anthropic
-        client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-        resp = client.messages.create(model=CLAUDE_MODEL, max_tokens=1000,
-                                       system=system, messages=[{"role":"user","content":user_msg}])
-        return "".join(b.text for b in resp.content if b.type == "text").strip()
+    last_err = None
+    for attempt in range(retries):
+        try:
+            if LLM_PROVIDER == "gemini":
+                from google import genai
+                from google.genai import types
+                client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+                resp = client.models.generate_content(
+                    model=GEMINI_MODEL, contents=user_msg,
+                    config=types.GenerateContentConfig(system_instruction=system, max_output_tokens=1000))
+                return (resp.text or "").strip()
+            else:  # anthropic
+                from anthropic import Anthropic
+                client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+                resp = client.messages.create(model=CLAUDE_MODEL, max_tokens=1000,
+                                               system=system, messages=[{"role":"user","content":user_msg}])
+                return "".join(b.text for b in resp.content if b.type == "text").strip()
+        except Exception as e:
+            last_err = e
+            msg = str(e)
+            # ลองใหม่เฉพาะ error ชั่วคราว (503/overload/rate limit)
+            if any(x in msg for x in ("503", "UNAVAILABLE", "overload", "429", "RESOURCE_EXHAUSTED")) and attempt < retries-1:
+                time.sleep(1.5 * (attempt + 1))   # รอแล้วลองใหม่ (1.5s, 3s)
+                continue
+            raise
+    raise last_err
 
 # ==========================================================
 # 4) HANDLERS
@@ -260,21 +274,28 @@ async def webhook(request: Request):
         print("WEBHOOK uid:", uid, "|", type(ev).__name__)   # ดู userId ฝั่งบอท
         reply = None
 
-        if isinstance(ev, FollowEvent):
-            reply = handle_follow(uid)
+        try:
+            if isinstance(ev, FollowEvent):
+                reply = handle_follow(uid)
 
-        elif isinstance(ev, PostbackEvent):
-            # Rich Menu / ปุ่มต่างๆ ส่ง postback data มา
-            data = dict(p.split("=") for p in ev.postback.data.split("&"))
-            if data.get("action") == "daily_summary":
-                reply = handle_daily_summary(uid)
-            # เพิ่ม action อื่น: open_form (เปิด LIFF), set_goal ฯลฯ
+            elif isinstance(ev, PostbackEvent):
+                # Rich Menu / ปุ่มต่างๆ ส่ง postback data มา
+                data = dict(p.split("=") for p in ev.postback.data.split("&"))
+                if data.get("action") == "daily_summary":
+                    reply = handle_daily_summary(uid)
+                # เพิ่ม action อื่น: open_form (เปิด LIFF), set_goal ฯลฯ
 
-        elif isinstance(ev, MessageEvent) and isinstance(ev.message, TextMessage):
-            reply = handle_food_text(uid, ev.message.text.strip())
+            elif isinstance(ev, MessageEvent) and isinstance(ev.message, TextMessage):
+                reply = handle_food_text(uid, ev.message.text.strip())
+        except Exception as e:
+            print("HANDLER error:", repr(e))
+            reply = "ขอโทษครับ ระบบขัดข้องชั่วคราว (เซิร์ฟเวอร์ AI แน่น) ลองใหม่อีกครั้งในสักครู่นะครับ 🙏"
 
         if reply:
-            line_bot_api.reply_message(ev.reply_token, TextSendMessage(text=reply))
+            try:
+                line_bot_api.reply_message(ev.reply_token, TextSendMessage(text=reply))
+            except Exception as e:
+                print("REPLY error:", repr(e))
 
     return "OK"
 
