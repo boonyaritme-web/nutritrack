@@ -201,53 +201,72 @@ def handle_daily_summary(user_id):
     return ask_llm(COACH_SYSTEM, prompt)
 
 def estimate_food_llm(text):
-    """ให้ AI ประเมิน macro ของอาหารอะไรก็ได้ทั่วโลก -> dict หรือ None"""
-    sys = ("คุณเป็นผู้เชี่ยวชาญโภชนาการ ประเมินคุณค่าทางอาหารของเมนูใดก็ได้ทั่วโลก "
-           "(ไทย ญี่ปุ่น ฝรั่ง ฟาสต์ฟู้ด ฯลฯ) ตอบกลับเป็น JSON เท่านั้น ห้ามมีข้อความอื่นหรือ markdown "
-           'รูปแบบ: {"name":"ชื่ออาหารกระชับ","kcal":ตัวเลข,"protein":ตัวเลข,"fat":ตัวเลข,"carb":ตัวเลข} '
-           "ประเมินตามปริมาณที่ผู้ใช้ระบุ ถ้าไม่ระบุปริมาณให้ถือว่า 1 หน่วยเสิร์ฟปกติ "
-           "หน่วย: kcal เป็นกิโลแคลอรี ส่วน protein/fat/carb เป็นกรัม")
+    """ให้ AI แยกและประเมินอาหาร 'ทุกอย่าง' ในข้อความ -> list ของ dict (รองรับหลายเมนูในครั้งเดียว)"""
+    sys = ("คุณเป็นผู้เชี่ยวชาญโภชนาการ ผู้ใช้จะพิมพ์อาหารที่กิน อาจมีหลายอย่างในข้อความเดียว "
+           "(คั่นด้วย + เครื่องหมาย เว้นวรรค คำว่า 'กับ' ฯลฯ) ให้แยกเป็นรายการแล้วประเมินแต่ละอย่าง "
+           "ประเมินเมนูใดก็ได้ทั่วโลก (ไทย ญี่ปุ่น ฝรั่ง ฟาสต์ฟู้ด) "
+           "ตอบกลับเป็น JSON array เท่านั้น ห้ามมีข้อความอื่นหรือ markdown "
+           'รูปแบบ: [{"name":"ชื่อกระชับ","kcal":ตัวเลข,"protein":ตัวเลข,"fat":ตัวเลข,"carb":ตัวเลข}, ...] '
+           "ประเมินตามปริมาณที่ระบุ ถ้าไม่ระบุให้ถือว่า 1 หน่วยเสิร์ฟปกติ "
+           "หน่วย: kcal เป็นกิโลแคลอรี protein/fat/carb เป็นกรัม")
     try:
         raw = ask_llm(sys, text).replace("```json", "").replace("```", "").strip()
-        d = json.loads(raw)
-        return {"name": str(d.get("name", text))[:60],
-                "kcal": float(d.get("kcal", 0)), "protein": float(d.get("protein", 0)),
-                "fat": float(d.get("fat", 0)), "carb": float(d.get("carb", 0))}
+        data = json.loads(raw)
+        if isinstance(data, dict):       # เผื่อ AI ตอบมาเป็นก้อนเดียว
+            data = [data]
+        items = []
+        for d in data:
+            items.append({"name": str(d.get("name", text))[:60],
+                          "kcal": float(d.get("kcal", 0)), "protein": float(d.get("protein", 0)),
+                          "fat": float(d.get("fat", 0)), "carb": float(d.get("carb", 0))})
+        return [x for x in items if x["kcal"] > 0]
     except Exception as e:
         print("estimate error:", e)
         return None
 
-def log_food(user_id, name, kcal, p, f, c_, est=False):
-    """บันทึกอาหารลง DB แล้วตอบกลับพร้อมยอดคงเหลือของวันนี้"""
+def remaining_msg(user_id):
+    """ข้อความยอดคงเหลือวันนี้ (ถ้าตั้งเป้าหมายไว้แล้ว)"""
+    _, t = build_context(user_id)
+    if not t:
+        return "\n\n(กดปุ่ม 'กรอกข้อมูล' เพื่อตั้งเป้าหมาย จะได้เห็นยอดคงเหลือ)"
+    today = date.today().isoformat()
+    with db() as conn:
+        foods = conn.execute("SELECT kcal,protein FROM food_logs WHERE user_id=? AND logged_at LIKE ?",
+                             (user_id, f"{today}%")).fetchall()
+    ek = sum(x["kcal"] for x in foods); ep = sum(x["protein"] for x in foods)
+    return f"\n\nวันนี้เหลือ {round(t['target']-ek)} kcal · โปรตีนอีก {max(0,round(t['protein']-ep))}g"
+
+def save_food(user_id, name, kcal, p, f, c_):
     with db() as conn:
         conn.execute("INSERT INTO food_logs(user_id,logged_at,name,kcal,protein,fat,carb) VALUES(?,?,?,?,?,?,?)",
                      (user_id, datetime.now().isoformat(), name, kcal, p, f, c_))
-    tag = " 🤖" if est else ""
-    msg = f"บันทึก {name}{tag} แล้ว ✅\n{round(kcal)} kcal · โปรตีน {round(p)}g"
-    # คำนวณยอดคงเหลือวันนี้ (ถ้าตั้งเป้าหมายไว้แล้ว)
-    _, t = build_context(user_id)
-    if t:
-        today = date.today().isoformat()
-        with db() as conn:
-            foods = conn.execute("SELECT kcal,protein FROM food_logs WHERE user_id=? AND logged_at LIKE ?",
-                                 (user_id, f"{today}%")).fetchall()
-        ek = sum(x["kcal"] for x in foods); ep = sum(x["protein"] for x in foods)
-        msg += f"\n\nวันนี้เหลือ {round(t['target']-ek)} kcal · โปรตีนอีก {max(0,round(t['protein']-ep))}g"
-    else:
-        msg += "\n\n(กดปุ่ม 'กรอกข้อมูล' เพื่อตั้งเป้าหมาย จะได้เห็นยอดคงเหลือ)"
-    return msg
 
 def handle_food_text(user_id, text):
-    """ข้อความปกติ = log อาหาร — เจอในฐานข้อมูลใช้ค่านั้น ไม่เจอให้ AI ประเมิน (อาหารทั่วโลก)"""
-    match = next((k for k in FOOD_DB if k in text), None)
-    if match:
-        kcal, p, f, c_ = FOOD_DB[match]
-        return log_food(user_id, match, kcal, p, f, c_)
-    # ไม่เจอในฐาน -> ให้ AI ประเมินอาหารอะไรก็ได้
-    est = estimate_food_llm(text)
-    if est and est["kcal"] > 0:
-        return log_food(user_id, est["name"], est["kcal"], est["protein"], est["fat"], est["carb"], est=True)
-    return "ขอโทษครับ ประเมินอาหารนี้ไม่ได้ ลองพิมพ์ให้ชัดขึ้น เช่น 'พิซซ่าฮาวายเอี้ยน 2 ชิ้น' หรือ 'sushi แซลมอน 6 คำ'"
+    """ข้อความปกติ = log อาหาร — แยกได้หลายเมนูในครั้งเดียว (เช่น 'ลาบ+ข้าวสวย+ไข่ต้ม')"""
+    items = []
+    # ถ้ามีตัวคั่น (มีหลายเมนู) ให้ AI แยกทั้งหมดเลย กัน FOOD_DB จับได้ไม่ครบ
+    multi = any(s in text for s in ["+", ",", "กับ", "และ", "/"])
+    if not multi:
+        # เมนูเดี่ยว: ลองจับจากฐานข้อมูลไทยก่อน (เร็ว แม่น ไม่เปลือง AI)
+        for k, (kcal, p, f, c_) in FOOD_DB.items():
+            if k in text:
+                items.append({"name": k, "kcal": kcal, "protein": p, "fat": f, "carb": c_, "est": False})
+                break
+    # ไม่เจอในฐาน หรือมีหลายเมนู -> ให้ AI แยก+ประเมิน (รองรับอาหารทั่วโลก)
+    if not items:
+        est = estimate_food_llm(text)
+        if est:
+            items = [{**x, "est": True} for x in est]
+    if not items:
+        return "ขอโทษครับ ประเมินอาหารนี้ไม่ได้ ลองพิมพ์ให้ชัดขึ้น เช่น 'ลาบหมู 1 จาน + ข้าวสวย 1 ทัพพี'"
+    # บันทึกทุกเมนู
+    lines = []
+    for it in items:
+        save_food(user_id, it["name"], it["kcal"], it["protein"], it["fat"], it["carb"])
+        tag = " 🤖" if it.get("est") else ""
+        lines.append(f"• {it['name']}{tag} — {round(it['kcal'])} kcal, โปรตีน {round(it['protein'])}g")
+    head = "บันทึกแล้ว ✅\n" + "\n".join(lines)
+    return head + remaining_msg(user_id)
 
 def handle_follow(user_id):
     with db() as c:
