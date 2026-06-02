@@ -564,7 +564,11 @@ async function loadLatest(){
   try{
     const res = await fetch(BACKEND_URL.replace(/\/$/,"") + "/api/latest?user_id=" + encodeURIComponent(LINE_USER_ID));
     const d = await res.json();
-    if(!d.has_data) return;
+    // อาหารวันนี้ (มาจาก log ในแชต LINE ด้วย) -> แสดงยอดกินบน dashboard
+    if(Array.isArray(d.foods)){
+      state.foods = d.foods.map(f=>({name:f.name, kcal:f.kcal, p:f.protein, f:f.fat, c:f.carb}));
+    }
+    if(!d.has_data){ render(); return; }
     state.body.weight = d.weight;
     state.body.bf = d.body_fat || 0;
     state.body.vf = d.visceral_fat || 0;
